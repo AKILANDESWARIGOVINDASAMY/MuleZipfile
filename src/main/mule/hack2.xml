@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:tls="http://www.mulesoft.org/schema/mule/tls"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd">
+	
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="0fd9d4ef-0c9e-446a-b6b2-010cb4d21335" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="e17e3a99-f869-425f-9d01-7706320428c5" >
+		<http:request-connection protocol="HTTPS" host="mulehack.documents.azure.com" port="443">
+		</http:request-connection>
+	</http:request-config>
+	<flow name="cosmosdbgetAllItems" doc:id="057d2fcc-db54-48c0-a067-345157a31bb8">
+		<ee:transform doc:name="Set AuthKey" doc:id="75ac490f-8f69-464e-82ef-6200b40d96d8" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="cosmosHeader" ><![CDATA[%dw 2.0
+import java!cosmosdb::GenerateCosmosDBAuthToken
+output application/java
+var verb = "GET"
+var resourceType = "docs" 
+var resourceId = "dbs/MSHACK/colls/Product"
+var key = "2DnE27gfzV0e2C5qoAyUv0BTAR0PYaRGSdfL9pJvGe7jgMgC60pbl6bEwYvR7Ieb2R8Aqg0OQq0B2HNlWpeuaw=="
+var keyType = "master"
+var tokenVersion = "1.0"		 
+var serverDateTime = GenerateCosmosDBAuthToken::getServerTime() as String
+---
+{
+	serverDateTime: serverDateTime,
+	authKey: GenerateCosmosDBAuthToken::generate(verb, resourceType, resourceId, key, keyType, tokenVersion, serverDateTime)
+}]]></ee:set-variable>
+			
+</ee:variables>
+		</ee:transform>
+		<http:request method="GET" doc:name="Cosmos DB GET" doc:id="77233036-81e3-4dc7-85cf-a520577f30b3" config-ref="HTTP_Request_configuration" path="dbs/MSHACK/colls/Product/docs">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+               "Accept" : "application/json",
+                "x-ms-version" : "2016-07-11",
+                "x-ms-max-item-count": 10,  
+                "x-ms-documentdb-query-enablecrosspartition": "False",  
+                "Authorization" : vars.cosmosHeader.authKey,
+                "x-ms-date" : vars.cosmosHeader.serverDateTime,
+                "Content-Type" : "application/json"
+            }]]]></http:headers>
+		</http:request>
+		<logger level="INFO" doc:name="Logger" doc:id="86c1bd49-350d-494c-8985-9b41f38b490a" message="Success"/>
+	</flow>
+	<flow name="CosmosdbPost" doc:id="85940c97-d560-48c3-b7d8-9d1fa0f76544">
+		<ee:transform doc:name="Set AuthKey" doc:id="98695d49-accd-412c-ada5-734dbb8da56c" >
+			<ee:message />
+			<ee:variables >
+				<ee:set-variable variableName="cosmosHeader" ><![CDATA[%dw 2.0
+import java!cosmosdb::GenerateCosmosDBAuthToken
+output application/java
+var verb = "POST"
+var resourceType = "docs" 
+var resourceId = "dbs/MSHACK/colls/Product"
+var key = "2DnE27gfzV0e2C5qoAyUv0BTAR0PYaRGSdfL9pJvGe7jgMgC60pbl6bEwYvR7Ieb2R8Aqg0OQq0B2HNlWpeuaw=="
+var keyType = "master"
+var tokenVersion = "1.0"		 
+var serverDateTime = GenerateCosmosDBAuthToken::getServerTime() as String
+---
+{
+	serverDateTime: serverDateTime,
+	authKey: GenerateCosmosDBAuthToken::generate(verb, resourceType, resourceId, key, keyType, tokenVersion, serverDateTime)
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<http:request method="POST" doc:name="Cosmos DB POST" doc:id="130ce3cf-ec2d-4ab0-b574-56e74028d7f3" config-ref="HTTP_Request_configuration" path="/dbs/MSHACK/colls/Product/docs" >
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : vars.cosmosHeader.authKey,
+	"Accept" : "application/json",
+	"x-ms-version" : "2016-07-11",
+	"x-ms-documentdb-partitionkey" : '["' ++ payload.retailItemId ++ '"]',
+	"Content-Type" : "application/json",
+	"x-ms-date" : vars.cosmosHeader.serverDateTime
+}]]]></http:headers>
+		</http:request>
+		<logger level="INFO" doc:name="Logger" doc:id="bb1df9ad-e2a2-491e-893e-b94f57595e0b" message="Success" />
+	</flow>
+	<flow name="Delete" doc:id="d8ad3a73-8d3c-4a20-ab62-ac614ed68314">
+		<ee:transform doc:name="Transform Message" doc:id="a43beaf0-b7bb-4c3c-b92f-b9d9667a6b6c" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="cosmosHeader" ><![CDATA[%dw 2.0
+import java!cosmosdb::GenerateCosmosDBAuthToken
+output application/java
+var verb = "DELETE"
+var resourceType = "docs" 
+var resourceId = "dbs/MSHACK/colls/Product/docs/" ++ payload.id
+var key = "2DnE27gfzV0e2C5qoAyUv0BTAR0PYaRGSdfL9pJvGe7jgMgC60pbl6bEwYvR7Ieb2R8Aqg0OQq0B2HNlWpeuaw=="
+var keyType = "master"
+var tokenVersion = "1.0"		 
+var serverDateTime = GenerateCosmosDBAuthToken::getServerTime() as String
+---
+{
+	serverDateTime: serverDateTime,
+	authKey: GenerateCosmosDBAuthToken::generate(verb, resourceType, resourceId, key, keyType, tokenVersion, serverDateTime)
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<http:request method="DELETE" doc:name="Cosmos DB delete" doc:id="710d468e-5835-43fb-8946-1462dbb9a6be" config-ref="HTTP_Request_configuration" path='#["dbs/MSHACK/colls/Product/docs/"++ payload.id]' >
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : vars.cosmosHeader.authKey,
+	"Accept" : "application/json",
+	"x-ms-version" : "2016-07-11",
+	"x-ms-documentdb-partitionkey" : '["' ++ payload.retailItemId ++ '"]',
+	"Content-Type" : "application/json",
+	"x-ms-date" : vars.cosmosHeader.serverDateTime
+}]]]></http:headers>
+		</http:request>
+		<logger level="INFO" doc:name="Logger" doc:id="bb6c69e8-ab17-424a-afa8-d6dec8c5dd73" message="Success" />
+	</flow>
+	<flow name="GetparticularItem" doc:id="5cc95300-e2ed-4a70-9269-2a58b0ae9336" >
+		<ee:transform doc:name="Set AuthKey" doc:id="c8e2f2ce-ad89-4a76-b0b1-51b9e5dae9f9" >
+			<ee:message />
+			<ee:variables >
+				<ee:set-variable variableName="cosmosHeader" ><![CDATA[%dw 2.0
+import java!cosmosdb::GenerateCosmosDBAuthToken
+output application/java
+var verb = "POST"
+var resourceType = "docs" 
+var resourceId = "dbs/MSHACK/colls/Product"
+var key = "2DnE27gfzV0e2C5qoAyUv0BTAR0PYaRGSdfL9pJvGe7jgMgC60pbl6bEwYvR7Ieb2R8Aqg0OQq0B2HNlWpeuaw=="
+var keyType = "master"
+var tokenVersion = "1.0"		 
+var serverDateTime = GenerateCosmosDBAuthToken::getServerTime() as String
+---
+{
+	serverDateTime: serverDateTime,
+	authKey: GenerateCosmosDBAuthToken::generate(verb, resourceType, resourceId, key, keyType, tokenVersion, serverDateTime)
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<http:request method="POST" doc:name="Fetch Particular Item" doc:id="f88529de-789d-4fb6-a195-bf4b07d39a4a" config-ref="HTTP_Request_configuration" path="/dbs/MSHACK/colls/Product/docs">
+			<http:body ><![CDATA[#[{
+  "query": "SELECT * FROM  p where CONTAINS (p.description,@descvar) OR (p.globalTradeItemNumbers = @gtinsvar) OR  (@datevar BETWEEN p.startDateValid AND p.endDateValid)",
+  "parameters": [
+    {
+      "name": "@descvar",
+      "value": payload.description
+    },
+    {
+      "name": "@gtinsvar",
+      "value": payload.GTINS
+    },
+	{
+      "name": "@datevar",
+      "value": payload.date
+	}
+  ]
+}]]]></http:body>
+			<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : vars.cosmosHeader.authKey,
+	"x-ms-documentdb-query-enablecrosspartition" : "True",
+	"Accept" : "application/json",
+	"x-ms-version" : "2016-07-11",
+	"x-ms-documentdb-isquery" : "True",
+	"Content-Type" : "application/query+json",
+	"x-ms-date" : vars.cosmosHeader.serverDateTime
+}]]]></http:headers>
+		</http:request>
+		<logger level="INFO" doc:name="Logger" doc:id="672ab5f8-ce69-493f-b1e2-fe3599902e37" message="Success" />
+	</flow>
+	
+	</mule>
